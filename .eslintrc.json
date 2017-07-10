@@ -1,0 +1,63 @@
+{
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 6,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "impliedScript": true
+     }
+  },
+  "env": {
+    "browser": true,
+    "es6": true
+  },
+  "rules": {
+    "no-extra-parens": [ "warn", "all" ],
+    "dot-notation": [ "warn" ],
+    "eqeqeq": [ "error" ],
+    "no-eval": [ "error" ],
+    "no-extend-native": [ "error" ],
+    "no-extra-bind": [ "error" ],
+    "no-implicit-globals": [ "error" ],
+    "no-magic-numbers": [ "error", { "ignore": [1, -1, 0] } ],
+    "no-multi-spaces": [ "warn" ],
+    "no-return-assign": [ "error" ],
+    "no-script-url": [ "error" ],
+    "no-self-assign": [ "error" ],
+    "vars-on-top": [ "error" ],
+    "wrap-iife": [ "error" ],
+    "no-undefined": [ "error" ],
+    "no-use-before-define": [ "error" ],
+    "array-bracket-spacing": [ "warn", "always" ],
+    "block-spacing": [ "warn" ],
+    "brace-style": [ "error" ],
+    "comma-dangle": [ "warn" ],
+    "comma-spacing": [ "warn", { "before": false, "after": true } ],
+    "func-call-spacing": [ "warn" ],
+    "id-length": [ "error", { "min": 1 } ],
+    "space-in-parens": [ "error", "always", { "exceptions": ["{}"] } ],
+    "object-curly-spacing": [ "warn", "always" ],
+    "camelcase": [ "warn", { "properties": "always" } ],
+    "indent": [ "error", 2 ],
+    "key-spacing": [ "warn", { "beforeColon": false, "afterColon": true, "mode": "strict" } ],
+    "no-mixed-spaces-and-tabs": [ "error" ],
+    "no-multiple-empty-lines": [ "warn" ],
+    "no-nested-ternary": [ "warn" ],
+    "no-new-object": [ "warn" ],
+    "no-tabs": [ "warn" ],
+    "no-trailing-spaces": [ "warn" ],
+    "no-unneeded-ternary": [ "error" ],
+    "no-whitespace-before-property": [ "warn" ],
+    "object-curly-newline": [ "warn" ],
+    "object-property-newline": [ "warn" ],
+    "operator-linebreak": [ "error", "before" ],
+    "padded-blocks": [ "error", "never" ],
+    "quote-props": [ "warn", "always" ],
+    "quotes": [ "warn", "double", { "avoidEscape": true, "allowTemplateLiterals": true } ],
+    "semi-spacing": [ "error", { "before": false, "after": true } ],
+    "semi": [ "error", "always" ],
+    "space-before-blocks": [ "warn", { "functions": "always", "keywords": "never", "classes": "never" } ],
+    "space-before-function-paren": [ "warn" ],
+    "space-infix-ops": [ "warn" ]
+  }
+}

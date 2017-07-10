@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<script type="text/javascript" src="//platform.linkedin.com/in.js">
+    api_key:   86hx1j5dp6myf7
+    onLoad:    onLoad
+    authorize: true
+</script>
+</head>
+<body>
+    <script type="text/javascript">
+        function onLoad() {
+            console.log("onLoad: logged in!");
+            console.log(`onLoad: Authorized, ${IN.User.isAuthorized()}`);
+            IN.User.authorize(() => {
+                console.log(`authorize: Authorized, ${IN.User.isAuthorized()}`);
+                // fetchLoggedInUser();
+                // fetchAdditionalFields();
+                fetchConnections();
+                // logOutUser();
+            });
+
+            IN.Event.on(IN, "logout", () => { IN.User.refresh() });
+        }
+
+        function fetchLoggedInUser() {
+            IN.API.Raw("/people/~?format=json").method("GET").result((res) => {
+                console.log(res);
+            });
+        }
+
+        function fetchConnections() {
+            IN.API.Raw("/people/~/connections?format=json").method("GET").result((res) => {
+                console.log(res);
+            });
+        }
+
+        function fetchAdditionalFields() {
+            const url = "/people/~:(id,num-connections,picture-url)?format=json"
+            IN.API.Raw(url).method("GET").result((res) => {
+                console.log(res);
+            });
+        }
+
+        function logOutUser() {
+            IN.User.logout(() => {
+                console.log("User logged out");
+            });
+        }
+    </script>
+</body>
+</html>
