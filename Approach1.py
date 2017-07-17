@@ -19,9 +19,11 @@ class Approach():
                             bisect.insort_left(self.index[review['useruser_id']][['businessuser_id']],
                                                self.get_date_range(review['date']))
                         else:
-                            self.index[review['useruser_id']][review['businessuser_id']] = [self.get_date_range(review['date'])]
+                            self.index[review['useruser_id']][review['businessuser_id']] = [
+                                self.get_date_range(review['date'])]
                     else:
-                        self.index[review['useruser_id']] = {review['businessuser_id']: [self.get_date_range(review['date'])]}
+                        self.index[review['useruser_id']] = {
+                            review['businessuser_id']: [self.get_date_range(review['date'])]}
                     line += 1
                     if line % 1000 == 0:
                         print '{}: Completed {} lines'.format(str(datetime.datetime.now()), line)
@@ -66,9 +68,9 @@ class Approach():
 
 if __name__ == '__main__':
     a = Approach()
-    a.create_index("./yelp_dataset_challenge_round9/yelp_academic_dataset_review.json", "index.json")
+    a.create_index("./yelp_dataset_challenge_round9/yelp_academic_dataset_review.json", "./data/approach1_index.json")
     print 'Started running Approach1\nLoading index...'
-    a.load_index("index.json")
+    a.load_index("./data/approach1_index.json")
     while True:
         inp = raw_input('Enter user ids separated by a space (empty input to exit): ')
         if len(inp.strip()) == 0:

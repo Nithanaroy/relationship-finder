@@ -1,5 +1,3 @@
-yelp_dataset_challenge_round9/*.json
-yelp_dataset_challenge_round9/*.pdf
 .idea
-index.json
+data/
 *.pyc
