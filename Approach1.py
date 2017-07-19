@@ -14,16 +14,16 @@ class Approach():
             with open(filename) as f:
                 for review_str in f:
                     review = json.loads(review_str)
-                    if review['useruser_id'] in self.index:
-                        if review['businessuser_id'] in self.index[review['useruser_id']]:
-                            bisect.insort_left(self.index[review['useruser_id']][['businessuser_id']],
+                    if review['user_id'] in self.index:
+                        if review['business_id'] in self.index[review['user_id']]:
+                            bisect.insort_left(self.index[review['user_id']][['business_id']],
                                                self.get_date_range(review['date']))
                         else:
-                            self.index[review['useruser_id']][review['businessuser_id']] = [
+                            self.index[review['user_id']][review['business_id']] = [
                                 self.get_date_range(review['date'])]
                     else:
-                        self.index[review['useruser_id']] = {
-                            review['businessuser_id']: [self.get_date_range(review['date'])]}
+                        self.index[review['user_id']] = {
+                            review['business_id']: [self.get_date_range(review['date'])]}
                     line += 1
                     if line % 1000 == 0:
                         print '{}: Completed {} lines'.format(str(datetime.datetime.now()), line)

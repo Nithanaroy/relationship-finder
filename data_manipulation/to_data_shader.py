@@ -40,8 +40,8 @@ def from_index_to_csv(index_file, output_file):
 
 def create_datashader_image(source_file, outimg_file):
     df = pd.read_csv(source_file)
-    cvs = ds.Canvas(plot_width=2560, plot_height=1440)
-    agg = cvs.points(df, 'user', 'location', ds.count('start_date'))
+    cvs = ds.Canvas(plot_width=5800, plot_height=1440)
+    agg = cvs.line(df, 'user', 'location', ds.mean('start_date'))
     img = tf.shade(agg, cmap=['lightblue', 'darkblue'], how='linear')
     img.to_pil().save(outimg_file)
 
