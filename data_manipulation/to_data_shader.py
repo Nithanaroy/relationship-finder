@@ -1,4 +1,4 @@
-import json, datetime, time
+import json, datetime, time, heapq
 import datashader as ds
 import datashader.transfer_functions as tf
 import pandas as pd
@@ -22,10 +22,22 @@ def from_index_to_csv(index_file, output_file):
         location_id_map = {}
         index = json.loads(f.read())
         print 'Completed loading the index at {}'.format(str(datetime.datetime.now()))
+
+        # Order users
+        user_order = []
+        for user in index:
+            time_frames_for_locations = map(lambda loc: len(index[user][loc]), index[user])  # [1, 1, 1]
+            user_score = sum(time_frames_for_locations)
+            heapq.heappush(user_order, (user_score, user))
+
+        # Save results in that order
         with open(output_file, 'w') as o:
             users_count = len(index)
             print 'Found {} users'.format(users_count)
-            for user_numeric_id, user in enumerate(index):
+            user_numeric_id = 0
+            while len(user_order) > 0:
+                _, user = heapq.heappop(user_order)
+                user_numeric_id += 1
                 for location in index[user]:
                     location_id = get_location_id(location_id_map, location)
                     for time_frame in index[user][location]:
