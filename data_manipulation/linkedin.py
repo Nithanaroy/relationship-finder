@@ -1,14 +1,13 @@
 #!/usr/local/bin/python
 # -*- coding: utf-8
 
-import requests, json, regex, unicodedata
+import requests, json, regex, unicodedata, sys, traceback, datetime
+from time import sleep
+from pymongo import MongoClient
+import pymongo
 
 url_prefix = "https://www.linkedin.com/voyager/api/identity/profiles"
-user = "ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w"
-count = 100
-offset = 0
-positions_url = "{}/{}/positions?count={}&start={}".format(url_prefix, user, count, offset)
-connections_url = "{}/{}/memberConnections?count={}&q=connections&start={}".format(url_prefix, user, count, offset)
+max_depth = 2
 headers = {"authority": 'www.linkedin.com',
            "method": 'GET',
            "scheme": 'https',
@@ -16,7 +15,7 @@ headers = {"authority": 'www.linkedin.com',
            "accept-encoding": 'gzip, deflate, br',
            "accept-language": 'en-US,en;q=0.8,en-GB;q=0.6',
            "cache-control": 'no-cache',
-           "cookie": 'bcookie="v=2&02a27746-7a07-4237-867e-5cdd12ce44c4"; bscookie="v=1&20160809041846b3a0f450-69f6-4a08-8cd6-5207af763cb1AQHX9xShptrKu8MD9i9R_YfM1Blkvsoa"; wutan=Ezmyd1qpFeKH/lI6c87PqUyOY+R0H1J1HkAAvFtq+VQ=; visit="v=1&M"; __utma=226841088.1914582579.1470720178.1483334359.1483334359.1; __utmc=226841088; _cb_ls=1; _cb=Cf-NJmCKZwvpCkfSl2; _chartbeat2=.1474917126138.1483334360596.0000000000000001.CUfpN8rvFZ-zPstcDChuH9CMHaAo; ELOQUA=GUID=3657cc531f804115925b87150d0ed8e4; share_setting=PUBLIC; lil-lang=en_US; PLAY_SESSION=598a4b4062ba0b53c42acb9db5928cae9f974378-chsInfo=7ec12aef-454b-4464-8781-15b1a9c3ff53+premium_inmail_search_upsell; SID=c36a17cd-6d1a-4b22-8341-e9ccdc101e1a; VID=V_2017_07_08_06_1314; lihc_auth_en=1499817419; lihc_auth_str=TUeIkEFbqFXwCzxdnT8KTw%2FKYiwPh2a3yOLaKBmxSyAqU0f6%2FQ4yCUvaUSSvoethF4hU6YAKu%2F4CG1jF2R26PSK70gcLJk%2BSRg8QuKq7Ib%2F3%2FykoLrEwHIWkT6SUeNeHq0IncGVUZhX4GfqjXfPR6UEzSnZS5%2BCAjuQOmO0JbTnN6ui8FstTsYZwWni58Q2f9%2BGk8Y8xbIhriPkVudwkgQTJjeXCEWBhx5%2BpUvWQjPrI0gVlgkpGVtFjfg3lXe8%2FXftcAy77W1IXF0toCIAa5KIXucujgZCnA0f8VuWWNozv5mx2Fv%2BLuA%3D%3D; sdsc=1%3A1SZM1shxDNbLt36wZwCgPgvN58iw%3D; li_at=AQEDAQLi8o4B7BgyAAABXSFdeJ8AAAFdQQARxlYAPwN4D5dVagHtyq3pq-O_aEq5GCE-doeVJY0cXnIEyMKyAg82iqYYMuznsa6crj1xB-s3hVyukbQsjW3CqY3P2dtH2FwgSQCdoiZSq4ZkDu1TPZDr; liap=true; sl="v=1&4MYSD"; JSESSIONID="ajax:5955892876341589979"; lidc="b=OB62:g=329:u=255:i=1500005309:t=1500091709:s=AQFfGmVHsPS2P8z2I1tjYSJcEuiDBs24"; lang="v=2&lang=en-us"; _ga=GA1.2.1914582579.1470720178; _gat=1; _lipt=CwEAAAFdP9RFx-rm-zLtXvsOYan9Pk5aCcF2fx6nMEOKwPFX4TsP9cmrnazoMRiQToLE63f5bur0IYl5gch1ebALltHMkQ9p0jiAB8djEsk4SFjo0v0OiJf9xeKE1DlaWHiaCK0VeEfJRllQ308tDJBiZgiDEhtdi3myVvxOSAc7p29UQzkh6eMj645tRJdUSUhiy2IPS_YY30IL81ou1rbXkFIbxN5S0rLXje-v6C_R6IqDVOKaiOM6OrHHjcxN4qyMAfmqImMGGnoai3jzYQTM3_mJdAW46VGEEo1CxhpNVlzvouI2iFMygx-nC8n0Lz4r-tYKvsdjvL6ANbt2mhIzfzAGuNaxLa6gkYJATVmhrdFpQmyOcfJLwNTLk41eBXv9L4LbcwfxYGmV6Tbrv6jfPl3RqpI4ip8zqLhNCqgRfM9R8HzCJr_hShBBLis2LbmJpvZQaDpkyD1SthH3tTVfzOWWhiPJgAvUuqCfw0ftnEZ88KQcBGSoVVXBtJE6gostJgkgo1Nz17o8emT0-oUy__btdPCkEIwmZKUxpk1dU4jvzj1OLaf9SkskjYYDHQ--t5fdd-2h843NapZ5VlXgYeB4CJdPTLkzAgcY9OceJXWI8VEZpVNaLflVU131QjufZBbG5gjGYxer5PqzjINgGpNBbHqPvwmE8YxNHTDs6EYmLx7az6nnT55cnsEKMmP3IcxdQNAA7g5DipCn3EYjBg',
+           "cookie": 'bcookie="v=2&02a27746-7a07-4237-867e-5cdd12ce44c4"; bscookie="v=1&20160809041846b3a0f450-69f6-4a08-8cd6-5207af763cb1AQHX9xShptrKu8MD9i9R_YfM1Blkvsoa"; wutan=Ezmyd1qpFeKH/lI6c87PqUyOY+R0H1J1HkAAvFtq+VQ=; visit="v=1&M"; __utma=226841088.1914582579.1470720178.1483334359.1483334359.1; __utmc=226841088; _cb_ls=1; _cb=Cf-NJmCKZwvpCkfSl2; _chartbeat2=.1474917126138.1483334360596.0000000000000001.CUfpN8rvFZ-zPstcDChuH9CMHaAo; ELOQUA=GUID=3657cc531f804115925b87150d0ed8e4; share_setting=PUBLIC; lil-lang=en_US; PLAY_SESSION=598a4b4062ba0b53c42acb9db5928cae9f974378-chsInfo=7ec12aef-454b-4464-8781-15b1a9c3ff53+premium_inmail_search_upsell; SID=c36a17cd-6d1a-4b22-8341-e9ccdc101e1a; VID=V_2017_07_08_06_1314; lihc_auth_en=1499817419; lihc_auth_str=TUeIkEFbqFXwCzxdnT8KTw%2FKYiwPh2a3yOLaKBmxSyAqU0f6%2FQ4yCUvaUSSvoethF4hU6YAKu%2F4CG1jF2R26PSK70gcLJk%2BSRg8QuKq7Ib%2F3%2FykoLrEwHIWkT6SUeNeHq0IncGVUZhX4GfqjXfPR6UEzSnZS5%2BCAjuQOmO0JbTnN6ui8FstTsYZwWni58Q2f9%2BGk8Y8xbIhriPkVudwkgQTJjeXCEWBhx5%2BpUvWQjPrI0gVlgkpGVtFjfg3lXe8%2FXftcAy77W1IXF0toCIAa5KIXucujgZCnA0f8VuWWNozv5mx2Fv%2BLuA%3D%3D; sdsc=1%3A1SZM1shxDNbLt36wZwCgPgvN58iw%3D; lidc="b=OB62:g=341:u=265:i=1501035696:t=1501122096:s=AQHFZl1ehAUSW2l1AYdaFLrIUvVL3ypZ"; li_at=AQEDAQLi8o4B7BgyAAABXSFdeJ8AAAFdgpl2XlYAXoKxpULxOQaRiEAgbZDarsEwN9Xr_MXnK7rRJWjjiODWAG8_1tFTFnGYwYF-tv7GwzRHkjg6C52_nJbNBQnGvjsiYkB9dpQOSZi1l2bR39exvdBe; liap=true; sl="v=1&lx-Te"; JSESSIONID="ajax:5955892876341589979"; lang="v=2&lang=en-us"; _ga=GA1.2.1914582579.1470720178; _gat=1; _lipt=CwEAAAFdgVIDRkAQtIrHsCaAE-JhR_NiYM2okqaKSzSsCOIWIatm2pmnx6BGLPdq-wy462CYkJLVTa78WR-Llz0MSlsGkpOvsjbR-C8iTldZ9godPQCdp0vgREIa_j5gdTp9aTikkjsNQHuKJ-grXXsyHf4_iKYNM8kwEN_Gv2h8Pta1i9m6TXfcrDN32TFTy2d8mHx1KzM-jwwkBYZobWSGC8ihRa5jrvsUe7LABNLqTdKNs5pwIG8ZvGPquZA2PeLYbhp-uXAW9H9u74w2nWfePBAsG8Gbx5_BA_E9vGRfPjh3hhCO_vtG3NS87Nbm2WDq7D1NWpSxtnPdsVIk5cReRLaUZugCC0po0Nm-7cC2jB0tRCtSYXYclgPOsg7l7lDlr0IKBw_rc297rS1IQC35oIdISO9ou4STuaim4JsqENawGWWC1A8MyiGI0mbxoj1CvrCXaJv-pzcslRZFQQK6xEiEcYJ-6lwDWZ1ZgWixgE6IJlwUMx4Ux0pDmIZG3ImneaO2p8IUPx-OmgsupFtQ2IsJZ70A65EdIApKxAIw_BezIm6df-hOzQpaH2TzVm_PN84i3BeCM8ZxCBDxC4cdup2ovGyUBqUAHk3urroP10da-orkCKEa_MygE2O-JlOgoEYH966x-QanKie1O4w_G9cjsOG0B5Hd0HOrBZRXwEsOPI5OFo5NqZ-JWW2n0T1kEbwqrC_Y984wY2VkLr_-ZAUPOgmtiKA',
            "csrf-token": 'ajax:5955892876341589979',
            "dnt": '1',
            "pragma": 'no-cache',
@@ -27,6 +26,12 @@ headers = {"authority": 'www.linkedin.com',
            "x-li-track": '{"clientVersion":"1.0.*","osName":"web","timezoneOffset":-7,"deviceFormFactor":"DESKTOP"}',
            "x-requested-with": 'XMLHttpRequest',
            "x-restli-protocol-version": '2.0.0'}
+
+print pymongo.version
+# sys.exit(0)
+
+client = MongoClient()
+db = client.linkedin_graph
 
 
 def find(test, arr, default={}):
@@ -40,42 +45,117 @@ def clean(inp):
     return unicodedata.normalize('NFKD', inp).encode('utf-8', 'ignore')
 
 
-def parse_positions(positions):
-    # positions = json.loads(positions_response_str, encoding='utf-8')
+def parse_positions(positions, user):
+    result = []
     for position in positions['data']['elements']:
         position_id = regex.findall(r',(\d+)\)$', position)[0]
         relevant_details = filter(lambda detail: detail.get('$id', "").find(position_id) >= 0, positions['included'])
         start_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,startDate"), relevant_details)
         end_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,endDate"), relevant_details)
-        company_meta = find(lambda d: d['$id'].endswith(",company"), relevant_details)
-        company_id = regex.findall(r',(\d+)\),company$', company_meta['$id'])[0]
-        company_obj = find(lambda detail: detail.get('company', "").find(company_id) >= 0, positions['included'])
+        # company_meta = find(lambda d: d['$id'].endswith(",company"), relevant_details)
+        # company_id = regex.findall(r',(\d+)\),company$', company_meta['$id'])[0]  # Non standard companies will not have this
+        company_obj = find(
+            lambda detail: detail.get("entityUrn", "") == "urn:li:fs_position:({},{})".format(user, position_id),
+            positions['included'])
         start_date = "{}-{}".format(start_date_obj.get('year', ''), start_date_obj.get('month', ''))
         end_date = "{}-{}".format(end_date_obj.get('year', ''), end_date_obj.get('month', ''))
         company_name = company_obj.get('companyName', '')
-        company_id = company_obj.get('companyUrn', '')[len(u'urn:li:fs_miniCompany:'):]
+        company_id = company_obj.get('companyUrn', 'urn:li:fs_miniCompany:' + company_name)[
+                     len(u'urn:li:fs_miniCompany:'):]  # Default to company name if ID not found
         worked_as = company_obj.get('title', '')
-        print start_date, end_date, company_name, company_id, worked_as
+        result.append({"sdate": start_date, "edate": end_date,
+                       "cname": company_name, "cid": company_id, "role": worked_as})
+    return result
 
 
 def parse_connections(connections_resp_json):
     connections = filter(lambda c: c['$type'] == 'com.linkedin.voyager.identity.shared.MiniProfile',
                          connections_resp_json.get('included', []))
-    for connection in connections:
-        print connection['firstName'], connection['lastName'], connection['entityUrn'][len('urn:li:fs_miniProfile:'):]
+    return map(lambda connection: {"fname": connection['firstName'], "lname": connection['lastName'],
+                                   "id": connection['entityUrn'][len('urn:li:fs_miniProfile:'):]}, connections)
+
+
+def mongodump(user, raw_positions, raw_connections, positions, connections):
+    raw = json.loads(
+        json.dumps({"_id": user, "pos": raw_positions, "conn": raw_connections}).replace("$", "__").replace(".", "_"))
+    processed = {"_id": user, "pos": positions, "conn": connections}
+
+    if not db.raw.find_one({"_id": user}):
+        db.raw.insert_one(raw)
+    else:
+        print '{}: Raw info for user, {}, already exists'.format(str(datetime.datetime.now()), user)
+
+    if not db.graph.find_one({"_id": user}):
+        db.graph.insert_one(processed)
+    else:
+        print '{}: Raw info for user, {}, already exists'.format(str(datetime.datetime.now()), user)
+
+
+def bfs():
+    page_size = 100
+    positions_url_template = "{}/{}/positions?count={}&start={}"
+    connections_url_template = "{}/{}/memberConnections?count={}&q=connections&start={}"
+    q = [("ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w", 0)]
+    visited = set([])
+    try:
+        while len(q) > 0:
+            user, depth = q.pop()
+            if depth > max_depth:
+                continue
+            positions, positions_json_resp = fetch_all_positions(page_size, positions_url_template, user)
+            connections, connections_json_resp = fetch_all_connections(connections_url_template, page_size, user)
+            for connection in connections:
+                if connection['id'] not in visited:
+                    q.append((connection['id'], depth + 1))
+            mongodump(user, positions_json_resp, connections_json_resp, positions, connections)
+            if len(visited) % 100 == 0:
+                print '{}: Completed parsing {} at depth, {}. Parsed {} connections. {} more to go'.format(
+                    str(datetime.datetime.now()), user, depth, len(visited), len(q))
+            visited.add(user)
+            sleep(0.3)
+    except:
+        traceback.print_exc(file=sys.stdout)
+        with open("linkedin_parsing_status.txt", 'w') as f:
+            f.write(json.dumps(list(visited)))
+
+
+def fetch_all_connections(connections_url_template, page_size, user):
+    connections = []
+    connections_jsons = []
+    offset = 0
+    while True:
+        connections_url = connections_url_template.format(url_prefix, user, page_size, offset)
+        connections_json_resp = requests.get(connections_url, headers=headers).json()
+        new_connections = parse_connections(connections_json_resp)
+        if len(new_connections) == 0:
+            return connections, connections_jsons
+        connections += new_connections
+        connections_jsons.append(connections_json_resp)
+        offset += page_size
+        sleep(0.3)
+        # return connections, connections_jsons
+
+
+def fetch_all_positions(page_size, positions_url_template, user):
+    positions = []
+    positions_jsons = []
+    offset = 0
+    while True:
+        positions_url = positions_url_template.format(url_prefix, user, page_size, offset)
+        positions_json_resp = requests.get(positions_url, headers=headers).json()
+        new_positions = parse_positions(positions_json_resp, user)
+        if len(new_positions) == 0:
+            return positions, positions_jsons
+        positions += new_positions
+        positions_jsons.append(positions_json_resp)
+        offset += page_size
+        sleep(0.3)
 
 
 def main():
-    r = requests.get(positions_url, headers=headers)
-    r1 = requests.get(connections_url, headers=headers)
-    # positions_response_str = r'{"data":{"elements":["urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889)","urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971)","urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535)"],"paging":{"total":8,"count":5,"start":5,"links":[]}},"included":[{"$deletedFields":["day"],"month":6,"year":2013,"$type":"com.linkedin.common.Date","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),timePeriod,startDate"},{"$deletedFields":["day"],"month":7,"year":2015,"$type":"com.linkedin.common.Date","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),timePeriod,endDate"},{"$deletedFields":["day"],"month":12,"year":2013,"$type":"com.linkedin.common.Date","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),timePeriod,endDate"},{"$deletedFields":["day"],"month":6,"year":2012,"$type":"com.linkedin.common.Date","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),timePeriod,startDate"},{"$deletedFields":["day"],"month":7,"year":2012,"$type":"com.linkedin.common.Date","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),timePeriod,endDate"},{"$deletedFields":["day"],"month":7,"year":2014,"$type":"com.linkedin.common.Date","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),timePeriod,startDate"},{"$deletedFields":[],"endDate":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),timePeriod,endDate","startDate":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),timePeriod,startDate","$type":"com.linkedin.voyager.common.DateRange","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),timePeriod"},{"$deletedFields":[],"endDate":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),timePeriod,endDate","startDate":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),timePeriod,startDate","$type":"com.linkedin.voyager.common.DateRange","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),timePeriod"},{"$deletedFields":[],"endDate":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),timePeriod,endDate","startDate":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),timePeriod,startDate","$type":"com.linkedin.voyager.common.DateRange","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),timePeriod"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAgDAAAAJGEyMmQ5NWI3LWYxYjEtNGU0Ny1iYjllLTI5Mzk5NDljZTk1ZA.png","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniCompany:3338050,logo,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAoJAAAAJGZlMTQ1NjY2LTVjMWMtNDYxMC1hMTNmLWZkMTkyMDM3N2JjOQ.png","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniCompany:3725643,logo,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":[],"objectUrn":"urn:li:company:3338050","entityUrn":"urn:li:fs_miniCompany:3338050","name":"Netskope","showcase":false,"active":true,"logo":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniCompany:3338050,logo,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"DfJXAtkjTrOzoLsJw2G9Qw==","$type":"com.linkedin.voyager.entities.shared.MiniCompany"},{"$deletedFields":["logo"],"objectUrn":"urn:li:company:1005244","entityUrn":"urn:li:fs_miniCompany:1005244","name":"INDIAN OVERSEAS BANK","showcase":false,"active":true,"trackingId":"5TX96duSSFyUkIuuiUzDqw==","$type":"com.linkedin.voyager.entities.shared.MiniCompany"},{"$deletedFields":[],"objectUrn":"urn:li:company:3725643","entityUrn":"urn:li:fs_miniCompany:3725643","name":"Oracle India Pvt. Ltd","showcase":false,"active":true,"logo":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniCompany:3725643,logo,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"LmlaE8hqQJW4WNNYVGIDDQ==","$type":"com.linkedin.voyager.entities.shared.MiniCompany"},{"$deletedFields":[],"start":201,"end":500,"$type":"com.linkedin.voyager.identity.profile.EmployeeCountRange","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),company,employeeCountRange"},{"$deletedFields":["end"],"start":10001,"$type":"com.linkedin.voyager.identity.profile.EmployeeCountRange","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),company,employeeCountRange"},{"$deletedFields":["end"],"start":10001,"$type":"com.linkedin.voyager.identity.profile.EmployeeCountRange","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),company,employeeCountRange"},{"$deletedFields":["courses","projects","honors","entityLocale","organizations"],"locationName":"Chennai Area, India","entityUrn":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535)","companyName":"INDIAN OVERSEAS BANK","timePeriod":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),timePeriod","description":"Developed Complaint register form using Microsoft Visual Studio and SQL database ","company":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),company","title":"Full time Intern","region":"urn:li:fs_region:(in,6891)","companyUrn":"urn:li:fs_miniCompany:1005244","recommendations":[],"$type":"com.linkedin.voyager.identity.profile.Position"},{"$deletedFields":["courses","projects","honors","entityLocale","organizations"],"locationName":"Bengaluru Area, India","entityUrn":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889)","companyName":"Oracle India Pvt. Ltd","timePeriod":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),timePeriod","description":"Worked for Server Technologies Department under Database Team\nDeveloped network benchmark tool using NetStress tool and PL/SQL statements for Inter-process communication on TCP-IP and UDP protocols for packet transfer, size ranging from 2GB to 32GB on Real Application Cluster having four nodes\n Worked with Intel Debug Registers to Improve performance of hardware watch points of Oracle RDBMS feature\nDeveloped Version Control program which updates all latest versions of DLL files when new version files are released\nDeveloped scripting tool using shell script to analyze CFS and NIFS performance on 50GB file\n ","company":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),company","title":"Member of Technical Staff","region":"urn:li:fs_region:(in,5281)","companyUrn":"urn:li:fs_miniCompany:3725643","recommendations":[],"$type":"com.linkedin.voyager.identity.profile.Position"},{"locationName":"Bengaluru Area, India","projects":["urn:li:fs_project:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,1861604649)"],"companyName":"Netskope","description":"Cloud Security Research on Cloud Storage Applications\nAnalyzed HTTP,HTPPS network protocols using temper-data add-on on Firefox browser for various SAAS, PAAS and IAAS Cloud Applications\nDeveloped connector tool using XML language to notify about user actions done on cloud applications\nAnalyzed data packets consisting MIME,JSON,GWT,TEXT,BASE 64 encoded techniques using wireshark tool and developed python add-ons to parse the connector tool with database","title":"Full time Intern","companyUrn":"urn:li:fs_miniCompany:3338050","recommendations":[],"$type":"com.linkedin.voyager.identity.profile.Position","$deletedFields":["courses","honors","entityLocale","organizations"],"entityUrn":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971)","timePeriod":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),timePeriod","company":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),company","region":"urn:li:fs_region:(in,5281)"},{"employeeCountRange":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),company,employeeCountRange","$deletedFields":[],"miniCompany":"urn:li:fs_miniCompany:3338050","industries":["Computer Software"],"$type":"com.linkedin.voyager.identity.profile.PositionCompany","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692971),company"},{"employeeCountRange":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),company,employeeCountRange","$deletedFields":[],"miniCompany":"urn:li:fs_miniCompany:3725643","industries":["Information Technology and Services"],"$type":"com.linkedin.voyager.identity.profile.PositionCompany","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731692889),company"},{"employeeCountRange":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),company,employeeCountRange","$deletedFields":[],"miniCompany":"urn:li:fs_miniCompany:1005244","industries":["Banking"],"$type":"com.linkedin.voyager.identity.profile.PositionCompany","$id":"urn:li:fs_position:(ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w,731694535),company"}]}'
-    # connections_response_str = unicodedata.normalize('NFKD',
-    #                                                  u'{"data":{"elements":["KBS5NDKXk9oT5e0HI2bIpg==,0","KBS5NDKXk9oT5e0HI2bIpg==,1","KBS5NDKXk9oT5e0HI2bIpg==,2","KBS5NDKXk9oT5e0HI2bIpg==,3","KBS5NDKXk9oT5e0HI2bIpg==,4","KBS5NDKXk9oT5e0HI2bIpg==,5","KBS5NDKXk9oT5e0HI2bIpg==,6","KBS5NDKXk9oT5e0HI2bIpg==,7","KBS5NDKXk9oT5e0HI2bIpg==,8","KBS5NDKXk9oT5e0HI2bIpg==,9"],"paging":{"total":2866,"count":10,"start":10,"links":[]}},"included":[{"$deletedFields":["attribution"],"id":"/p/3/000/05f/15e/1f94502.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAgvjcBKu5q_Awb1X02b15KewqwNQdag8I,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAqWAAAAJGU3YTE0NjBiLWVhZDItNGVmMS1iNTdkLWY1MjBkMDAxZWJjZA.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAaK8MB8eS_KyS7d2eUQUsj05Q1A5s7gsE,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/p/2/000/075/231/3edad5e.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAActHUBq-umzG4blETjI_KWRPDgJ1HgLb4,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAhPAAAAJGRhYzY1YjEwLTlmOGYtNGM1My04NjJhLTkxMzVmNTE4MjM2Yg.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAl2wUBEoiUBbAG0V0qd-db-IbqKCq4_44,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/p/1/000/000/30f/3abebe2.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAa7p0B2rKKGsFAFlooxgNHuAOKY-YNKwE,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/p/8/000/22b/15e/3989258.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAZS6MBHkuXP4sUqVzEnNr8lSJWJyka4Vg,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/p/3/000/0a3/2ac/35cd55e.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAgmF0BuYOFScoKXwRCf5f-hitEZWuXIXE,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAaDAAAAJDhhN2NkMGEwLWRlODItNDQ2OS05MzVhLTQzYmU1MTFiNzg3Yg.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAgZKQB-YurYFweXAATx6OWPxZq30riKbk,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAcRAAAAJGI1NTM1MjMyLWQ4ZDQtNDEzOC05OTU0LTgxNDdiN2YwYmQyNg.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAhj_EBKVlaFm-9mZna8mdA-o9DIgqgJrE,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":["attribution"],"id":"/AAEAAQAAAAAAAAO6AAAAJGU0MWI1YmMxLWM4YzItNDg1Zi1iMGU3LTE0NWM1NDAzMGE0Ng.jpg","$type":"com.linkedin.voyager.common.MediaProcessorImage","$id":"urn:li:fs_miniProfile:ACoAAAAeJ8UBZgAlIOZk72a6ctnj0KDIRlyhbhM,picture,com.linkedin.voyager.common.MediaProcessorImage"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,5,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,2,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,8,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,0,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,3,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,6,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,9,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,4,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,1,distance"},{"$deletedFields":[],"value":"DISTANCE_2","$type":"com.linkedin.voyager.common.MemberDistance","$id":"KBS5NDKXk9oT5e0HI2bIpg==,7,distance"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,6,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAgmF0BuYOFScoKXwRCf5f-hitEZWuXIXE","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,6"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,7,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAgvjcBKu5q_Awb1X02b15KewqwNQdag8I","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,7"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,8,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAhj_EBKVlaFm-9mZna8mdA-o9DIgqgJrE","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,8"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,9,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAl2wUBEoiUBbAG0V0qd-db-IbqKCq4_44","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,9"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,0,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAZS6MBHkuXP4sUqVzEnNr8lSJWJyka4Vg","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,0"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,1,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAaK8MB8eS_KyS7d2eUQUsj05Q1A5s7gsE","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,1"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,2,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAa7p0B2rKKGsFAFlooxgNHuAOKY-YNKwE","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,2"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,3,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAActHUBq-umzG4blETjI_KWRPDgJ1HgLb4","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,3"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,4,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAeJ8UBZgAlIOZk72a6ctnj0KDIRlyhbhM","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,4"},{"$deletedFields":["introductionBrokerInsight","actions"],"distance":"KBS5NDKXk9oT5e0HI2bIpg==,5,distance","miniProfile":"urn:li:fs_miniProfile:ACoAAAAgZKQB-YurYFweXAATx6OWPxZq30riKbk","$type":"com.linkedin.voyager.identity.shared.MemberConnection","$id":"KBS5NDKXk9oT5e0HI2bIpg==,5"},{"firstName":"Lisa","lastName":"Nakashoji","$deletedFields":["backgroundImage"],"occupation":"Talent Acquisition at Facebook","objectUrn":"urn:li:member:1881205","entityUrn":"urn:li:fs_miniProfile:ACoAAAActHUBq-umzG4blETjI_KWRPDgJ1HgLb4","publicIdentifier":"lisanakashoji","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAActHUBq-umzG4blETjI_KWRPDgJ1HgLb4,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"KUwAOsKzSCq7l4zzdGoNBA==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Vivek","lastName":"Sankaran","$deletedFields":["backgroundImage"],"occupation":"Director at M.E.S.P.L.","objectUrn":"urn:li:member:2199537","entityUrn":"urn:li:fs_miniProfile:ACoAAAAhj_EBKVlaFm-9mZna8mdA-o9DIgqgJrE","publicIdentifier":"viveknest","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAhj_EBKVlaFm-9mZna8mdA-o9DIgqgJrE,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"qV++3S+PQX2gbiY57e8t/w==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Susheel","lastName":"Chauhan","$deletedFields":["backgroundImage"],"occupation":"Development Manager (Database Windows) at Oracle Bangalore","objectUrn":"urn:li:member:2145847","entityUrn":"urn:li:fs_miniProfile:ACoAAAAgvjcBKu5q_Awb1X02b15KewqwNQdag8I","publicIdentifier":"susheel-chauhan-987875","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAgvjcBKu5q_Awb1X02b15KewqwNQdag8I,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"NOk42XZBR3WpzADRxjkXOA==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Dave","lastName":"Albertson","$deletedFields":["backgroundImage"],"occupation":"Co-founder, CEO at Shelvspace","objectUrn":"urn:li:member:1657763","entityUrn":"urn:li:fs_miniProfile:ACoAAAAZS6MBHkuXP4sUqVzEnNr8lSJWJyka4Vg","publicIdentifier":"davealbertson","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAZS6MBHkuXP4sUqVzEnNr8lSJWJyka4Vg,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"CxBq5LXgTZii4Jici9VJTQ==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Siddharth","lastName":"Verma","$deletedFields":["backgroundImage"],"occupation":"Co-Founder, BeeWise","objectUrn":"urn:li:member:2480901","entityUrn":"urn:li:fs_miniProfile:ACoAAAAl2wUBEoiUBbAG0V0qd-db-IbqKCq4_44","publicIdentifier":"sidsverma","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAl2wUBEoiUBbAG0V0qd-db-IbqKCq4_44,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"0HtLzPJgTfu5WVf7oDHERQ==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Brett","lastName":"Heyfron","$deletedFields":["backgroundImage"],"occupation":"Recruiting for Apple","objectUrn":"urn:li:member:1765021","entityUrn":"urn:li:fs_miniProfile:ACoAAAAa7p0B2rKKGsFAFlooxgNHuAOKY-YNKwE","publicIdentifier":"bheyfron","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAa7p0B2rKKGsFAFlooxgNHuAOKY-YNKwE,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"jGiVf04MTk+ihUGS9Embmw==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Usha","lastName":"Raghavan","$deletedFields":["backgroundImage"],"occupation":"Technical Program Manager, Infrastructure Engineering at Facebook","objectUrn":"urn:li:member:2122916","entityUrn":"urn:li:fs_miniProfile:ACoAAAAgZKQB-YurYFweXAATx6OWPxZq30riKbk","publicIdentifier":"usharaghavan","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAgZKQB-YurYFweXAATx6OWPxZq30riKbk,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"A0twnY90QCOOFhYABh8/Yw==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Wendy","lastName":"Peper (Hungerford) CIR","$deletedFields":["backgroundImage"],"occupation":"Client Lead Recruiter-Amazon Home Services","objectUrn":"urn:li:member:2136157","entityUrn":"urn:li:fs_miniProfile:ACoAAAAgmF0BuYOFScoKXwRCf5f-hitEZWuXIXE","publicIdentifier":"wendypeper","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAgmF0BuYOFScoKXwRCf5f-hitEZWuXIXE,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"Dm3WbDn/TbuH/L9+0tN06w==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Beverly","lastName":"Martin","$deletedFields":["backgroundImage"],"occupation":"Senior Corporate Recruiter  / Talent Acquisition at Avanade","objectUrn":"urn:li:member:1976261","entityUrn":"urn:li:fs_miniProfile:ACoAAAAeJ8UBZgAlIOZk72a6ctnj0KDIRlyhbhM","publicIdentifier":"therecruiterin206","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAeJ8UBZgAlIOZk72a6ctnj0KDIRlyhbhM,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"A9jQalwcTkOhBnEPqqFXfg==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"},{"firstName":"Scott","lastName":"Kwait","$deletedFields":["backgroundImage"],"occupation":"Bringing together Data Science, Automation, and Biology to shape the world around us ► ✉ skwait@zymergen.com ◄","objectUrn":"urn:li:member:1715139","entityUrn":"urn:li:fs_miniProfile:ACoAAAAaK8MB8eS_KyS7d2eUQUsj05Q1A5s7gsE","publicIdentifier":"scottkwait","picture":{"com.linkedin.voyager.common.MediaProcessorImage":"urn:li:fs_miniProfile:ACoAAAAaK8MB8eS_KyS7d2eUQUsj05Q1A5s7gsE,picture,com.linkedin.voyager.common.MediaProcessorImage"},"trackingId":"R1npo2Y/Ri+oMxO/369jVg==","$type":"com.linkedin.voyager.identity.shared.MiniProfile"}]}').encode(
-    #     'ascii', 'ignore')
-    # parse_connections(connections_response_str)
-    if r.status_code == 200:
-        parse_positions(r.json())
-        parse_connections(r1.json())
+    print '{}: Started BFS'.format(str(datetime.datetime.now()))
+    bfs()
+    print '{}: Completed BFS'.format(str(datetime.datetime.now()))
 
 
 if __name__ == '__main__':
