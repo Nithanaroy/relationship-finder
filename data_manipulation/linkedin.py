@@ -68,6 +68,28 @@ def parse_positions(positions, user):
     return result
 
 
+def parse_education(education, user):
+    result = []
+    for ed in education['data']['elements']:
+        ed_id = regex.findall(r',(\d+)\)$', ed)[0]
+        relevant_details = filter(lambda detail: detail.get('$id', "").find(ed_id) >= 0, education['included'])
+        start_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,startDate"), relevant_details)
+        end_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,endDate"), relevant_details)
+        institution_obj = find(
+            lambda detail: detail.get("entityUrn", "") == "urn:li:fs_education:({},{})".format(user, ed_id),
+            education['included'])
+        start_date = start_date_obj.get('year', '')
+        end_date = end_date_obj.get('year', '')
+        school_name = institution_obj.get('schoolName', '')
+        school_id = institution_obj.get('schoolUrn', 'urn:li:fs_miniCompany:' + school_name)[
+                    len(u'urn:li:fs_miniCompany:'):]  # Default to school name if ID not found
+        degree = institution_obj.get('degreeName', '')
+        field = institution_obj.get('fieldOfStudy', '')
+        result.append({"sdate": start_date, "edate": end_date,
+                       "sname": school_name, "sid": school_id, "role": degree, "field": field})
+    return result
+
+
 def parse_connections(connections_resp_json):
     connections = filter(lambda c: c['$type'] == 'com.linkedin.voyager.identity.shared.MiniProfile',
                          connections_resp_json.get('included', []))
@@ -75,10 +97,14 @@ def parse_connections(connections_resp_json):
                                    "id": connection['entityUrn'][len('urn:li:fs_miniProfile:'):]}, connections)
 
 
-def mongodump(user, raw_positions, raw_connections, positions, connections):
+def mongodump(user, raw_positions, raw_connections, raw_education, positions, connections, education):
     raw = json.loads(
-        json.dumps({"_id": user, "pos": raw_positions, "conn": raw_connections}).replace("$", "__").replace(".", "_"))
-    processed = {"_id": user, "pos": positions, "conn": connections}
+        json.dumps({"_id": user["id"], "fname": user["fname"], "lname": user["lname"], "pos": raw_positions,
+                    "conn": raw_connections, "ed": raw_education}).replace("$",
+                                                                           "__").replace(
+            ".", "_"))
+    processed = {"_id": user["id"], "fname": user["fname"], "lname": user["lname"], "pos": positions,
+                 "conn": connections, "ed": education}
 
     if not db.raw.find_one({"_id": user}):
         db.raw.insert_one(raw)
@@ -94,24 +120,28 @@ def mongodump(user, raw_positions, raw_connections, positions, connections):
 def bfs():
     page_size = 100
     positions_url_template = "{}/{}/positions?count={}&start={}"
+    education_url_template = "{}/{}/educations?count={}&start={}"
     connections_url_template = "{}/{}/memberConnections?count={}&q=connections&start={}"
-    q = [("ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w", 0)]
+    q = [("ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w", "Alekhya", "Cheruvu", 0)]
     visited = set([])
     try:
         while len(q) > 0:
-            user, depth = q.pop()
+            user_id, fname, lname, depth = q.pop()
             if depth > max_depth:
                 continue
-            positions, positions_json_resp = fetch_all_positions(page_size, positions_url_template, user)
-            connections, connections_json_resp = fetch_all_connections(connections_url_template, page_size, user)
+            positions, positions_json_resp = fetch_all_positions(page_size, positions_url_template, user_id)
+            connections, connections_json_resp = fetch_all_connections(connections_url_template, page_size, user_id)
+            education, education_json_resp = fetch_all_education(page_size, education_url_template, user_id)
             for connection in connections:
                 if connection['id'] not in visited:
-                    q.append((connection['id'], depth + 1))
-            mongodump(user, positions_json_resp, connections_json_resp, positions, connections)
+                    q.append((connection['id'], connection["fname"], connection["lname"], depth + 1))
+            user = {"id": user_id, "fname": fname, "lname": lname}
+            mongodump(user, positions_json_resp, connections_json_resp, education_json_resp, positions, connections,
+                      education)
+            visited.add(user_id)
             if len(visited) % 100 == 0:
                 print '{}: Completed parsing {} at depth, {}. Parsed {} connections. {} more to go'.format(
-                    str(datetime.datetime.now()), user, depth, len(visited), len(q))
-            visited.add(user)
+                    str(datetime.datetime.now()), user_id, depth, len(visited), len(q))
             sleep(0.3)
     except:
         traceback.print_exc(file=sys.stdout)
@@ -133,7 +163,7 @@ def fetch_all_connections(connections_url_template, page_size, user):
         connections_jsons.append(connections_json_resp)
         offset += page_size
         sleep(0.3)
-        # return connections, connections_jsons
+        return connections, connections_jsons
 
 
 def fetch_all_positions(page_size, positions_url_template, user):
@@ -148,6 +178,22 @@ def fetch_all_positions(page_size, positions_url_template, user):
             return positions, positions_jsons
         positions += new_positions
         positions_jsons.append(positions_json_resp)
+        offset += page_size
+        sleep(0.3)
+
+
+def fetch_all_education(page_size, education_url_template, user):
+    education = []
+    education_jsons = []
+    offset = 0
+    while True:
+        education_url = education_url_template.format(url_prefix, user, page_size, offset)
+        education_json_resp = requests.get(education_url, headers=headers).json()
+        new_education = parse_education(education_json_resp, user)
+        if len(new_education) == 0:
+            return education, education_jsons
+        education += new_education
+        education_jsons.append(education_json_resp)
         offset += page_size
         sleep(0.3)
 
