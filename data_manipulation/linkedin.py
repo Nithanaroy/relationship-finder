@@ -1,12 +1,15 @@
 #!/usr/local/bin/python
 # -*- coding: utf-8
 
-import requests, json, regex, unicodedata, sys, traceback, datetime
+import requests, json, re, unicodedata, sys, traceback, datetime, math
 from time import sleep
 from pymongo import MongoClient
 import pymongo
 
+MAX_DOC_LENGTH = 16793598.0
+
 url_prefix = "https://www.linkedin.com/voyager/api/identity/profiles"
+state_persist_file = "linkedin_parsing_status.txt"
 max_depth = 2
 headers = {"authority": 'www.linkedin.com',
            "method": 'GET',
@@ -15,8 +18,8 @@ headers = {"authority": 'www.linkedin.com',
            "accept-encoding": 'gzip, deflate, br',
            "accept-language": 'en-US,en;q=0.8,en-GB;q=0.6',
            "cache-control": 'no-cache',
-           "cookie": 'bcookie="v=2&02a27746-7a07-4237-867e-5cdd12ce44c4"; bscookie="v=1&20160809041846b3a0f450-69f6-4a08-8cd6-5207af763cb1AQHX9xShptrKu8MD9i9R_YfM1Blkvsoa"; wutan=Ezmyd1qpFeKH/lI6c87PqUyOY+R0H1J1HkAAvFtq+VQ=; visit="v=1&M"; __utma=226841088.1914582579.1470720178.1483334359.1483334359.1; __utmc=226841088; _cb_ls=1; _cb=Cf-NJmCKZwvpCkfSl2; _chartbeat2=.1474917126138.1483334360596.0000000000000001.CUfpN8rvFZ-zPstcDChuH9CMHaAo; ELOQUA=GUID=3657cc531f804115925b87150d0ed8e4; share_setting=PUBLIC; lil-lang=en_US; PLAY_SESSION=598a4b4062ba0b53c42acb9db5928cae9f974378-chsInfo=7ec12aef-454b-4464-8781-15b1a9c3ff53+premium_inmail_search_upsell; SID=c36a17cd-6d1a-4b22-8341-e9ccdc101e1a; VID=V_2017_07_08_06_1314; lihc_auth_en=1499817419; lihc_auth_str=TUeIkEFbqFXwCzxdnT8KTw%2FKYiwPh2a3yOLaKBmxSyAqU0f6%2FQ4yCUvaUSSvoethF4hU6YAKu%2F4CG1jF2R26PSK70gcLJk%2BSRg8QuKq7Ib%2F3%2FykoLrEwHIWkT6SUeNeHq0IncGVUZhX4GfqjXfPR6UEzSnZS5%2BCAjuQOmO0JbTnN6ui8FstTsYZwWni58Q2f9%2BGk8Y8xbIhriPkVudwkgQTJjeXCEWBhx5%2BpUvWQjPrI0gVlgkpGVtFjfg3lXe8%2FXftcAy77W1IXF0toCIAa5KIXucujgZCnA0f8VuWWNozv5mx2Fv%2BLuA%3D%3D; sdsc=1%3A1SZM1shxDNbLt36wZwCgPgvN58iw%3D; lidc="b=OB62:g=341:u=265:i=1501035696:t=1501122096:s=AQHFZl1ehAUSW2l1AYdaFLrIUvVL3ypZ"; li_at=AQEDAQLi8o4B7BgyAAABXSFdeJ8AAAFdgpl2XlYAXoKxpULxOQaRiEAgbZDarsEwN9Xr_MXnK7rRJWjjiODWAG8_1tFTFnGYwYF-tv7GwzRHkjg6C52_nJbNBQnGvjsiYkB9dpQOSZi1l2bR39exvdBe; liap=true; sl="v=1&lx-Te"; JSESSIONID="ajax:5955892876341589979"; lang="v=2&lang=en-us"; _ga=GA1.2.1914582579.1470720178; _gat=1; _lipt=CwEAAAFdgVIDRkAQtIrHsCaAE-JhR_NiYM2okqaKSzSsCOIWIatm2pmnx6BGLPdq-wy462CYkJLVTa78WR-Llz0MSlsGkpOvsjbR-C8iTldZ9godPQCdp0vgREIa_j5gdTp9aTikkjsNQHuKJ-grXXsyHf4_iKYNM8kwEN_Gv2h8Pta1i9m6TXfcrDN32TFTy2d8mHx1KzM-jwwkBYZobWSGC8ihRa5jrvsUe7LABNLqTdKNs5pwIG8ZvGPquZA2PeLYbhp-uXAW9H9u74w2nWfePBAsG8Gbx5_BA_E9vGRfPjh3hhCO_vtG3NS87Nbm2WDq7D1NWpSxtnPdsVIk5cReRLaUZugCC0po0Nm-7cC2jB0tRCtSYXYclgPOsg7l7lDlr0IKBw_rc297rS1IQC35oIdISO9ou4STuaim4JsqENawGWWC1A8MyiGI0mbxoj1CvrCXaJv-pzcslRZFQQK6xEiEcYJ-6lwDWZ1ZgWixgE6IJlwUMx4Ux0pDmIZG3ImneaO2p8IUPx-OmgsupFtQ2IsJZ70A65EdIApKxAIw_BezIm6df-hOzQpaH2TzVm_PN84i3BeCM8ZxCBDxC4cdup2ovGyUBqUAHk3urroP10da-orkCKEa_MygE2O-JlOgoEYH966x-QanKie1O4w_G9cjsOG0B5Hd0HOrBZRXwEsOPI5OFo5NqZ-JWW2n0T1kEbwqrC_Y984wY2VkLr_-ZAUPOgmtiKA',
-           "csrf-token": 'ajax:5955892876341589979',
+           "cookie": 'JSESSIONID="ajax:1348591311292006406"; bcookie="v=2&aaff8c02-85f6-44d1-8045-6c311b8c347f"; bscookie="v=1&20170728071715c125eacf-0252-41ee-8f1f-361b6e35f7a3AQHPnzplBCnbFC-5Ba8yA4ewyInhyhfF"; _ga=GA1.2.1123751443.1501226238; visit="v=1&M"; _lipt=CwEAAAFdlNsEVHpB1MiGmNQez1UhaswGF4opY707AVeMHyqNWk4_LJC9yPvr5v0gx_iX0gsvttdmDRCQ8YnVJ8IVone08Lrshv55f3jKDJHMtsZsIoKpOaWRmGRhstZ68e3-mXi2QrAbr3zJVsjP_MEp4920CwW6TDznjoOm7343WH3Om56YSRxt18G2cxCu8SjzmMF3CMf9J1VV2eHjEAJaNVWPTsXIqKHNOC-54byykbqi8YzsGg5ePCix6jjPfiWi4Pf1UhZjVW-6P7aFnQ4Nsj7I_nFjK6VtBIQj7KANQlew5sITYWL_loyXxivmvaZoC6P7wdI2oUWzDo2O4_iBFMUSpntptoNgcDWCce2AJKYscoUATatYcM68jglkeayssmjwx3MZAnq8bHXxXE721fnsr2aYDWKgOx-G6OQXaSeNBOizwrGzG22TwhacnnOLLrrBqNQd-8S5mOPIKxMJTFmsS5_AEyp6AsjpWpbnHGwLz9pZ4RcIcsSrHXuCzvCsOOgCSZju76QnjTca22TtZde2G8q-hnRH1oazmyQ5qmu-kTVx6J7RqcC3OSuOOcnwvTDhvL1R3fpYS3C7PcmOQ1pbqJi0FcGkuKsaEW0uk-GsBaR4COgb_ABzUOwfUXLK8SSK1fo3mc4dmXt9yA0fzEDEKgkU0Ai3XEqYSsxmme2U48d6AC1ojIxhzAEjefDoq0DYknJXjAWTgtp6vFHTxSFtf5qF; lidc="b=OB62:g=346:u=265:i=1501440746:t=1501519050:s=AQHWt3YMLr8gfO-bk6cbstJMvQ3WIRzB"; join_wall=v=2&AQHjmU6GfV1OfQAAAV2UzuMyLrDYuV4tfX31qqz-TVnYaT-m1HfRNmshGfmwDQmgkqZjj6QE7d2UtSzK-vRl3yRhiSU0PMZBOfJmn7LescFeoGrjttebZmuuaUskHrLvv3GbEifspsV8Ig; RT=s=1501440582957&r=https%3A%2F%2Fwww.linkedin.com%2Fuas%2Fconsumer-captcha-v2%3FchallengeId%3DAQG2RKuZgf8mDAAAAV2Uz_mfn8hUbbsrb9CVPil1HyIo5B596Ogd0Z7p6ijjRdmGUCVNE24_0WRmldZOqUk9mm04E4Q1P7M7Kg; sl="v=1&Ta-kX"; li_at=AQEDAQLi8o4D_iIUAAABXZTUJwwAAAFdloubDFYARlIX-3DAL-SgKJVhhb1_iqDKLKFC9JGdV47nzyVVUpOg17-idDntUoUYllbssY9-D0kQmDihZk36YngErMVPlkZZRUMFkALuMrXb2fZtbp_R7vfe; liap=true; _gat=1; lang="v=2&lang=en-us"; sdsc=22%3A1%2C1501440729958%7EJOBS%2C063BzV75HHjXyv7n%2FX91CM7SjOFI%3D',
+           "csrf-token": 'ajax:1348591311292006406',
            "dnt": '1',
            "pragma": 'no-cache',
            "referer": 'https://www.linkedin.com/',
@@ -27,8 +30,7 @@ headers = {"authority": 'www.linkedin.com',
            "x-requested-with": 'XMLHttpRequest',
            "x-restli-protocol-version": '2.0.0'}
 
-print pymongo.version
-# sys.exit(0)
+print "PyMongo Version, %s" % (pymongo.version,)
 
 client = MongoClient()
 db = client.linkedin_graph
@@ -47,13 +49,13 @@ def clean(inp):
 
 def parse_positions(positions, user):
     result = []
-    for position in positions['data']['elements']:
-        position_id = regex.findall(r',(\d+)\)$', position)[0]
+    for position in positions.get('data', {"elements": []}).get('elements', []):
+        position_id = re.findall(r',(\d+)\)$', position)[0]
         relevant_details = filter(lambda detail: detail.get('$id', "").find(position_id) >= 0, positions['included'])
         start_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,startDate"), relevant_details)
         end_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,endDate"), relevant_details)
         # company_meta = find(lambda d: d['$id'].endswith(",company"), relevant_details)
-        # company_id = regex.findall(r',(\d+)\),company$', company_meta['$id'])[0]  # Non standard companies will not have this
+        # company_id = re.findall(r',(\d+)\),company$', company_meta['$id'])[0]  # Non standard companies will not have this
         company_obj = find(
             lambda detail: detail.get("entityUrn", "") == "urn:li:fs_position:({},{})".format(user, position_id),
             positions['included'])
@@ -70,8 +72,8 @@ def parse_positions(positions, user):
 
 def parse_education(education, user):
     result = []
-    for ed in education['data']['elements']:
-        ed_id = regex.findall(r',(\d+)\)$', ed)[0]
+    for ed in education.get('data', {"elements": []}).get('elements', []):
+        ed_id = re.findall(r',(\d+)\)$', ed)[0]
         relevant_details = filter(lambda detail: detail.get('$id', "").find(ed_id) >= 0, education['included'])
         start_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,startDate"), relevant_details)
         end_date_obj = find(lambda d: d['$id'].endswith(",timePeriod,endDate"), relevant_details)
@@ -93,26 +95,48 @@ def parse_education(education, user):
 def parse_connections(connections_resp_json):
     connections = filter(lambda c: c['$type'] == 'com.linkedin.voyager.identity.shared.MiniProfile',
                          connections_resp_json.get('included', []))
-    return map(lambda connection: {"fname": connection['firstName'], "lname": connection['lastName'],
+    return map(lambda connection: {"fname": connection['firstName'], "lname": connection.get('lastName', ''),
                                    "id": connection['entityUrn'][len('urn:li:fs_miniProfile:'):]}, connections)
 
 
 def mongodump(user, raw_positions, raw_connections, raw_education, positions, connections, education):
     raw = json.loads(
         json.dumps({"_id": user["id"], "fname": user["fname"], "lname": user["lname"], "pos": raw_positions,
-                    "conn": raw_connections, "ed": raw_education}).replace("$",
-                                                                           "__").replace(
-            ".", "_"))
+                    "conn": raw_connections, "ed": raw_education}).replace("$", "__").replace(".", "_"))
+    raw_pos = {"_id": user['id'], "pos": raw['pos']}
+    raw_conn = {"_id": user['id'], "conn": raw['conn']}
+    raw_ed = {"_id": user['id'], "ed": raw['ed']}
     processed = {"_id": user["id"], "fname": user["fname"], "lname": user["lname"], "pos": positions,
                  "conn": connections, "ed": education}
 
-    if not db.raw.find_one({"_id": user}):
-        db.raw.insert_one(raw)
+    if not db.raw.find_one({"_id": user['id']}):
+        # Raw JSON objects can be huge and raise BSON size exception, hence splitting into multiple
+        db.raw.insert_one({"_id": user['id'], "fname": user['fname'], "lname": user['lname']})
+        db.raw_pos.insert_one(raw_pos)
+        raw_conn_len = len(json.dumps(raw_conn))
+        if raw_conn_len > MAX_DOC_LENGTH:
+            raw_conn['conn'] = "SKIPPED_TOO_BIG"
+        db.raw_conn.insert_one(raw_conn)
+        db.raw_ed.insert_one(raw_ed)
     else:
         print '{}: Raw info for user, {}, already exists'.format(str(datetime.datetime.now()), user)
 
-    if not db.graph.find_one({"_id": user}):
-        db.graph.insert_one(processed)
+    if not db.graph.find_one({"_id": user['id']}):
+        curr_doc_len = len(json.dumps(processed))
+        if curr_doc_len > MAX_DOC_LENGTH:
+            pieces = math.ceil(curr_doc_len / MAX_DOC_LENGTH)
+            piece_size = int(math.ceil(connections / pieces))
+            processed.pop("conn", None)
+            chunk_start = 0
+            chunk_index = 0
+            while chunk_index < pieces:
+                processed["_id"] = "part{}_{}".format(chunk_index, user['id'])
+                processed['conn'] = connections[chunk_start: chunk_start + piece_size]
+                db.graph.insert_one(processed)
+                chunk_start += piece_size
+                chunk_index += 1
+        else:
+            db.graph.insert_one(processed)
     else:
         print '{}: Raw info for user, {}, already exists'.format(str(datetime.datetime.now()), user)
 
@@ -122,8 +146,8 @@ def bfs():
     positions_url_template = "{}/{}/positions?count={}&start={}"
     education_url_template = "{}/{}/educations?count={}&start={}"
     connections_url_template = "{}/{}/memberConnections?count={}&q=connections&start={}"
-    q = [("ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w", "Alekhya", "Cheruvu", 0)]
-    visited = set([])
+    user_id, fname, lname, depth = ("ACoAAAc0XbsB4tM8YmZfw0KUp8abP9hn5HlHI_w", "Alekhya", "Cheruvu", 0)
+    q, visited = restore_state([(user_id, fname, lname, depth)], set([]))
     try:
         while len(q) > 0:
             user_id, fname, lname, depth = q.pop()
@@ -139,14 +163,45 @@ def bfs():
             mongodump(user, positions_json_resp, connections_json_resp, education_json_resp, positions, connections,
                       education)
             visited.add(user_id)
-            if len(visited) % 100 == 0:
+            if len(visited) % 10 == 0:
                 print '{}: Completed parsing {} at depth, {}. Parsed {} connections. {} more to go'.format(
                     str(datetime.datetime.now()), user_id, depth, len(visited), len(q))
             sleep(0.3)
+        # BFS complete. Save the state as we did not complete the entire graph
+        with open(state_persist_file, 'w') as f:
+            f.write(json.dumps({"q": q, "visited": list(visited)}))
     except:
         traceback.print_exc(file=sys.stdout)
-        with open("linkedin_parsing_status.txt", 'w') as f:
-            f.write(json.dumps(list(visited)))
+        # Add this user back to Q as we did not process him / her yet
+        q.insert(0, (user_id, fname, lname, depth))
+        # Save Q and Visited lists to a file
+        with open(state_persist_file, 'w') as f:
+            f.write(json.dumps({"q": q, "visited": list(visited)}))
+        raise
+
+
+def restore_state(default_q, default_visited):
+    """
+    Restore state of BFS viz. values of Q and visited lists
+    :param default_q: value of q if no state found
+    :param default_visited: value of q if no state found
+    :return: Q and visited lists
+    """
+    try:
+        with open(state_persist_file, 'r') as f:
+            inp = f.readline()
+        if len(inp) > 0:
+            parsed_inp = json.loads(inp)
+            q = parsed_inp['q']
+            if len(q) == 0:
+                q = default_q
+            visited = set(parsed_inp['visited'])
+            if len(visited) == 0:
+                visited = default_visited
+            return q, visited
+        return default_q, default_visited
+    except IOError:
+        return default_q, default_visited
 
 
 def fetch_all_connections(connections_url_template, page_size, user):
@@ -163,7 +218,7 @@ def fetch_all_connections(connections_url_template, page_size, user):
         connections_jsons.append(connections_json_resp)
         offset += page_size
         sleep(0.3)
-        return connections, connections_jsons
+        # return connections, connections_jsons
 
 
 def fetch_all_positions(page_size, positions_url_template, user):
